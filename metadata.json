@@ -1,0 +1,6 @@
+{
+  "name": "Mansour Knowledge Base",
+  "description": "Une bibliothèque documentaire élégante et fluide, indexée dans une base SQLite locale via Prisma pour Claude au moyen d'un serveur MCP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

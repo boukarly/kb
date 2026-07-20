@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String?
+  createdAt DateTime  @default(now())
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id                String          @id @default(uuid())
+  userId            String
+  name              String
+  originalFilename  String
+  mimeType          String
+  fileSize          Int
+  storagePath       String
+  checksum          String?
+  status            String          // uploading, pending, extracting, indexing, ready, failed
+  pageCount         Int?
+  chunkCount        Int?
+  errorMessage      String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  chunks            DocumentChunk[]
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  chunkIndex Int
+  content    String
+  pageStart  Int?
+  pageEnd    Int?
+  heading    String?
+  tokenCount Int?
+  metadata   String?  // JSON string
+  createdAt  DateTime @default(now())
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+}
