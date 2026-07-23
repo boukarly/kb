@@ -1,12 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import { createClient } from '@insforge/sdk';
+import { createAdminClient } from '@insforge/sdk';
 import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
 
 type ServiceContext = {
   client: any;
-  userId: string;
+  ownerId: string;
 };
 
 const DOCUMENT_STATUSES = [
@@ -27,24 +27,25 @@ const baseUrl = (
   process.env.VITE_INSFORGE_BASE_URL ||
   ''
 ).replace(/\/+$/, '');
-const anonKey =
-  process.env.INSFORGE_ANON_KEY || process.env.VITE_INSFORGE_ANON_KEY || '';
-const serviceEmail = process.env.MCP_INSFORGE_EMAIL || '';
-const servicePassword = process.env.MCP_INSFORGE_PASSWORD || '';
+const adminKey = process.env.INSFORGE_ADMIN_KEY || '';
+const ownerId = process.env.MCP_OWNER_ID || '';
 const configuredApiKey = process.env.MCP_API_KEY || '';
 
-let servicePromise: Promise<ServiceContext> | null = null;
+let serviceContext: ServiceContext | null = null;
 
 function requireServerConfiguration() {
   const missing: string[] = [];
   if (!baseUrl) missing.push('INSFORGE_BASE_URL');
-  if (!anonKey) missing.push('INSFORGE_ANON_KEY');
-  if (!serviceEmail) missing.push('MCP_INSFORGE_EMAIL');
-  if (!servicePassword) missing.push('MCP_INSFORGE_PASSWORD');
+  if (!adminKey) missing.push('INSFORGE_ADMIN_KEY');
+  if (!ownerId) missing.push('MCP_OWNER_ID');
   if (!configuredApiKey) missing.push('MCP_API_KEY');
 
   if (missing.length) {
     throw new Error(`Configuration MCP manquante : ${missing.join(', ')}`);
+  }
+
+  if (!z.string().uuid().safeParse(ownerId).success) {
+    throw new Error('MCP_OWNER_ID doit être un UUID valide.');
   }
 }
 
@@ -89,33 +90,17 @@ function errorResult(error: unknown) {
   };
 }
 
-async function createServiceContext(): Promise<ServiceContext> {
+function getServiceContext(): ServiceContext {
   requireServerConfiguration();
 
-  const client = createClient({ baseUrl, anonKey }) as any;
-  const { data, error } = await client.auth.signInWithPassword({
-    email: serviceEmail,
-    password: servicePassword,
-  });
-
-  if (error || !data?.user?.id) {
-    throw new Error(
-      error?.message || 'Connexion du service MCP à InsForge impossible.',
-    );
+  if (!serviceContext) {
+    serviceContext = {
+      client: createAdminClient({ baseUrl, apiKey: adminKey }) as any,
+      ownerId,
+    };
   }
 
-  return { client, userId: data.user.id };
-}
-
-async function getServiceContext() {
-  if (!servicePromise) {
-    servicePromise = createServiceContext().catch((error) => {
-      servicePromise = null;
-      throw error;
-    });
-  }
-
-  return servicePromise;
+  return serviceContext;
 }
 
 async function audit(
@@ -126,7 +111,7 @@ async function audit(
 ) {
   try {
     await context.client.database.from('audit_logs').insert({
-      actor_id: context.userId,
+      actor_id: context.ownerId,
       action,
       resource_type: 'mcp',
       resource_id: resourceId || null,
@@ -135,6 +120,30 @@ async function audit(
   } catch {
     // L'audit ne doit jamais empêcher une lecture documentaire.
   }
+}
+
+async function getDocumentMap(
+  context: ServiceContext,
+  documentIds: string[],
+) {
+  const uniqueIds = [...new Set(documentIds)].filter(Boolean);
+  const map = new Map<string, any>();
+
+  if (!uniqueIds.length) return map;
+
+  const { data, error } = await context.client.database
+    .from('documents')
+    .select('id,title,original_filename,extension,status')
+    .in('id', uniqueIds)
+    .eq('owner_id', context.ownerId)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(error.message || 'Sources documentaires inaccessibles.');
+  }
+
+  for (const document of data || []) map.set(document.id, document);
+  return map;
 }
 
 const handler = createMcpHandler(
@@ -152,27 +161,41 @@ const handler = createMcpHandler(
       },
       async ({ query, limit }) => {
         try {
-          const context = await getServiceContext();
-          const { data, error } = await context.client.database.rpc(
-            'search_document_chunks',
-            {
-              search_query: query,
-              result_limit: limit,
-            },
-          );
+          const context = getServiceContext();
+          const { data: chunkRows, error } = await context.client.database
+            .from('document_chunks')
+            .select(
+              'id,document_id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
+            )
+            .eq('owner_id', context.ownerId)
+            .textSearch('search_vector', query, {
+              config: 'simple',
+              type: 'websearch',
+            })
+            .limit(limit);
 
           if (error) throw new Error(error.message || 'Recherche impossible.');
 
-          const results = (data || []).map((row: any) => ({
-            chunkId: row.chunk_id,
-            documentId: row.document_id,
-            documentTitle: row.document_title,
-            heading: row.heading || null,
-            pageStart: row.page_start ?? null,
-            pageEnd: row.page_end ?? null,
-            rank: row.rank ?? null,
-            content: crop(row.content, 3_500),
-          }));
+          const documentMap = await getDocumentMap(
+            context,
+            (chunkRows || []).map((row: any) => row.document_id),
+          );
+
+          const results = (chunkRows || [])
+            .filter((row: any) => documentMap.has(row.document_id))
+            .map((row: any) => {
+              const document = documentMap.get(row.document_id);
+              return {
+                chunkId: row.id,
+                documentId: row.document_id,
+                documentTitle: document?.title || null,
+                originalFilename: document?.original_filename || null,
+                heading: row.heading || null,
+                pageStart: row.page_start ?? null,
+                pageEnd: row.page_end ?? null,
+                content: crop(row.content, 3_500),
+              };
+            });
 
           await audit(context, 'mcp.search', {
             query,
@@ -192,7 +215,7 @@ const handler = createMcpHandler(
       {
         title: 'Lister les documents',
         description:
-          'Liste les documents accessibles au compte MCP, avec filtres facultatifs par titre, nom de fichier ou statut.',
+          'Liste les documents de la bibliothèque personnelle, avec filtres facultatifs par titre, nom de fichier ou statut.',
         inputSchema: {
           query: z.string().trim().max(200).optional(),
           status: z.enum(DOCUMENT_STATUSES).optional(),
@@ -201,13 +224,13 @@ const handler = createMcpHandler(
       },
       async ({ query, status, limit }) => {
         try {
-          const context = await getServiceContext();
+          const context = getServiceContext();
           let databaseQuery = context.client.database
             .from('documents')
             .select(
               'id,title,original_filename,mime_type,extension,size_bytes,status,progress,current_stage,page_count,chunk_count,language,metadata,created_at,updated_at',
             )
-            .eq('owner_id', context.userId)
+            .eq('owner_id', context.ownerId)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
 
@@ -254,7 +277,7 @@ const handler = createMcpHandler(
       },
       async ({ documentId, includeText, chunkOffset, chunkLimit }) => {
         try {
-          const context = await getServiceContext();
+          const context = getServiceContext();
           const { data: documentRows, error: documentError } =
             await context.client.database
               .from('documents')
@@ -262,7 +285,7 @@ const handler = createMcpHandler(
                 'id,title,original_filename,mime_type,extension,size_bytes,status,progress,current_stage,page_count,chunk_count,language,error_message,metadata,created_at,updated_at',
               )
               .eq('id', documentId)
-              .eq('owner_id', context.userId)
+              .eq('owner_id', context.ownerId)
               .is('deleted_at', null)
               .limit(1);
 
@@ -285,7 +308,7 @@ const handler = createMcpHandler(
                   'id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
                 )
                 .eq('document_id', documentId)
-                .eq('owner_id', context.userId)
+                .eq('owner_id', context.ownerId)
                 .order('chunk_index', { ascending: true })
                 .limit(requested);
 
@@ -303,7 +326,10 @@ const handler = createMcpHandler(
                 break;
               }
 
-              const content = crop(row.content, Math.min(6_000, remainingCharacters));
+              const content = crop(
+                row.content,
+                Math.min(6_000, remainingCharacters),
+              );
               remainingCharacters -= content.length;
               passages.push({ ...row, content });
             }
@@ -350,7 +376,7 @@ const handler = createMcpHandler(
       },
       async ({ chunkId }) => {
         try {
-          const context = await getServiceContext();
+          const context = getServiceContext();
           const { data: chunkRows, error: chunkError } =
             await context.client.database
               .from('document_chunks')
@@ -358,7 +384,7 @@ const handler = createMcpHandler(
                 'id,document_id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
               )
               .eq('id', chunkId)
-              .eq('owner_id', context.userId)
+              .eq('owner_id', context.ownerId)
               .limit(1);
 
           if (chunkError) {
@@ -372,7 +398,7 @@ const handler = createMcpHandler(
             .from('documents')
             .select('id,title,original_filename,extension,status')
             .eq('id', chunk.document_id)
-            .eq('owner_id', context.userId)
+            .eq('owner_id', context.ownerId)
             .limit(1);
 
           await audit(
@@ -396,21 +422,20 @@ const handler = createMcpHandler(
       'list_collections',
       {
         title: 'Lister les collections',
-        description:
-          'Liste les collections documentaires du compte connecté.',
+        description: 'Liste les collections de la bibliothèque personnelle.',
         inputSchema: {
           limit: z.number().int().min(1).max(100).default(50),
         },
       },
       async ({ limit }) => {
         try {
-          const context = await getServiceContext();
+          const context = getServiceContext();
           const { data, error } = await context.client.database
             .from('collections')
             .select(
               'id,name,description,color,document_count,created_at,updated_at',
             )
-            .eq('owner_id', context.userId)
+            .eq('owner_id', context.ownerId)
             .order('name', { ascending: true })
             .limit(limit);
 
