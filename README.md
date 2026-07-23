@@ -1,102 +1,107 @@
 # Mansour Knowledge Base
 
-Mansour Knowledge Base est une application web full-stack élégante et performante permettant de téléverser des documents (PDF, DOCX, TXT, MD), de suivre leur traitement d'indexation en temps réel et de les organiser au sein d'une bibliothèque documentaire sécurisée. Ce dépôt indexe localement le contenu textuel au sein d'une base SQLite via Prisma Client, le rendant prêt à être interrogé sémantiquement par un assistant Claude via le protocole Model Context Protocol (MCP).
+Bibliothèque documentaire sécurisée construite avec React, Vite, InsForge et Vercel. Les utilisateurs peuvent déposer des fichiers PDF, DOCX, TXT et Markdown, conserver leurs métadonnées dans PostgreSQL et interroger les passages indexés depuis l’application ou depuis un client compatible Model Context Protocol (MCP).
 
----
+## Architecture
 
-## Fonctionnalités Clés
+- **Frontend** : React 19, Vite, Tailwind CSS 4 et TypeScript.
+- **Authentification** : InsForge Auth, avec email/mot de passe ou OAuth.
+- **Base de données** : PostgreSQL InsForge avec RLS.
+- **Stockage** : bucket privé InsForge `knowledge-documents`.
+- **Recherche** : PostgreSQL Full Text Search via `search_document_chunks`.
+- **MCP** : serveur distant Streamable HTTP sur Vercel avec `mcp-handler`.
 
-1. **Page de Connexion Sûre & Fluide** : Connexion simplifiée par e-mail ou bac à sable sans mot de passe complexe, stockant les sessions utilisateur directement dans SQLite pour une sécurité optimale.
-2. **Tableau de Bord de Pilotage** :
-   - Zone de glisser-déposer de haute fidélité (`UploadZone`) validant les types MIME et la taille limite de 10 Mo.
-   - Files d'attente dynamiques affichant la progression réelle du téléversement.
-   - Statistiques globales claires et filtres interactifs.
-3. **Bibliothèque Documentaire** :
-   - Recherche en temps réel par mot-clé et nom.
-   - Tri intelligent par format et statut.
-   - Grille responsive pour mobile et tableau aéré pour les écrans d'ordinateur.
-4. **Fiche de Détails d'un Document** :
-   - Informations techniques complètes (taille, pages, date, checksum sémantique).
-   - Visionneuse de passages (chunks) extraits de manière réaliste par le moteur local SQLite.
-   - Chronologie visuelle animée (`ProcessingTimeline`) retraçant les étapes de traitement (Téléversement → En attente → Extraction → Création de l'index → Prêt).
-   - Commandes pour relancer l'indexation ou supprimer définitivement (avec avertissement).
-5. **Paramètres Claude MCP** :
-   - Informations de compte et règles d'import.
-   - URL unique prête pour être connectée au client Claude Desktop via le protocole standardisé JSON-RPC MCP.
+## État du traitement documentaire
 
----
+- TXT et Markdown sont découpés et indexés directement depuis le navigateur.
+- PDF et DOCX sont stockés avec le statut `queued` jusqu’à la mise en place du processeur d’extraction serveur.
+- Le serveur MCP ne retourne que les passages déjà présents dans `document_chunks`.
 
-## Stack Technique
+## Installation
 
-- **Frontend** : React 19, Tailwind CSS v4, Lucide Icons, Framer Motion transitions, TypeScript Strict.
-- **Backend** : Express v4, Multer (stockage de fichiers physiques locaux), Vite Dev Server Middleware.
-- **Base de données** : SQLite locale orchestrée par Prisma v7.
-- **Sécurité** :
-   - Sessions utilisateur chiffrées gérées en base SQLite.
-   - Fichiers importés gérés de manière privée dans un répertoire local sécurisé (`./uploads`).
-   - Requêtes filtrées par identifiant utilisateur au moyen de clés étrangères dans SQLite.
-
----
-
-## Installation et Exécution
-
-### 1. Cloner ou Extraire le Projet
-Installez les dépendances du projet :
 ```bash
 npm install
-```
-
-### 2. Configuration des Variables d'Environnement
-Vérifiez que le fichier `.env` à la racine contient la déclaration de la base de données :
-```env
-DATABASE_URL="file:./dev.db"
-GEMINI_API_KEY="VOTRE_CLE_API"
-APP_URL="http://localhost:3000"
-```
-
-### 3. Initialisation et Migration de la Base SQLite
-Pour initialiser le fichier de base de données `dev.db` et y appliquer le schéma Prisma, exécutez la commande suivante :
-```bash
-npx prisma db push
-```
-
-Cette commande va créer le fichier SQLite localement et générer les définitions de types d'accès de Prisma Client.
-
-### 4. Lancement en Mode Développement
-Pour lancer le serveur Express et l'interface Vite en simultané sur le port 3000 :
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
-Ouvrez ensuite votre navigateur sur [http://localhost:3000](http://localhost:3000).
+L’application web locale est disponible sur `http://localhost:3000`.
 
----
+## Variables frontend
 
-## Spécification Technique de la Base de Données (Prisma Schema)
-
-- **User** : Enregistrement de l'identifiant et de l'e-mail de l'utilisateur.
-- **Session** : Stockage du jeton de session Bearer et de la date d'expiration pour la gestion de l'authentification locale.
-- **Document** : Contient le statut du cycle de vie (`uploading`, `pending`, `extracting`, `indexing`, `ready`, `failed`), le chemin d'accès au fichier local, la taille, le nombre de pages et de blocs.
-- **DocumentChunk** : Blocs textuels extraits avec indicateurs de page d'origine, en-têtes parents et jetons, liés par clé étrangère en cascade lors de la suppression de leur document.
-- **Collection** : Métadonnées d'organisation des collections d'index.
-
----
-
-## Intégration Claude (Model Context Protocol)
-
-L'URL fournie dans l'onglet Paramètres est compatible avec la structure suivante pour votre fichier `claude_desktop_config.json` :
-
-```json
-{
-  "mcpServers": {
-    "mansour-knowledge-base": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-postgres", // ou votre module relais local
-        "http://localhost:3000/api/mcp"
-      ]
-    }
-  }
-}
+```env
+VITE_INSFORGE_BASE_URL="https://your-project.insforge.app"
+VITE_INSFORGE_ANON_KEY="your-anon-key"
+VITE_APP_URL="http://localhost:3000"
 ```
+
+## Variables MCP côté serveur
+
+Ces variables doivent être définies dans Vercel et ne doivent jamais être préfixées par `VITE_` lorsqu’elles contiennent des secrets.
+
+```env
+INSFORGE_BASE_URL="https://your-project.insforge.app"
+INSFORGE_ANON_KEY="your-anon-key"
+MCP_INSFORGE_EMAIL="your-insforge-login@example.com"
+MCP_INSFORGE_PASSWORD="your-insforge-password"
+MCP_API_KEY="a-long-random-secret"
+```
+
+Le compte indiqué par `MCP_INSFORGE_EMAIL` doit être le propriétaire des documents. Le serveur se connecte sous ce compte et les politiques RLS continuent donc à s’appliquer.
+
+Pour générer une clé MCP :
+
+```bash
+openssl rand -base64 48
+```
+
+## Endpoint MCP
+
+Après déploiement sur Vercel :
+
+```text
+https://your-deployment.vercel.app/api/mcp
+```
+
+Le serveur utilise Streamable HTTP et exige :
+
+```http
+Authorization: Bearer <MCP_API_KEY>
+```
+
+## Outils MCP disponibles
+
+- `search` : recherche plein texte dans les passages indexés.
+- `list_documents` : liste et filtre les documents.
+- `get_document` : retourne les métadonnées et une tranche des passages.
+- `fetch_chunk` : lit un passage précis avec sa source.
+- `list_collections` : liste les collections documentaires.
+
+Tous les outils sont en lecture seule. Les consultations sont inscrites dans `audit_logs`.
+
+## Déploiement Vercel
+
+1. Importer le dépôt dans Vercel.
+2. Définir toutes les variables frontend et MCP.
+3. Redéployer la branche concernée.
+4. Connecter le client MCP à `/api/mcp` avec le Bearer token.
+
+Le fichier `vercel.json` fait passer les fonctions `/api/*` avant le fallback de la SPA.
+
+## Base InsForge
+
+Le schéma complet est versionné ici :
+
+```text
+insforge/migrations/001_knowledge_base.sql
+```
+
+Il crée les tables, fonctions, index, triggers et politiques RLS nécessaires. Le bucket `knowledge-documents` doit être créé séparément dans l’onglet Storage d’InsForge et rester privé.
+
+## Sécurité
+
+- Ne jamais placer `MCP_INSFORGE_PASSWORD` ou `MCP_API_KEY` dans une variable `VITE_*`.
+- Ne jamais publier la clé administrateur InsForge dans le dépôt.
+- Conserver le bucket privé.
+- Faire tourner la clé MCP en cas de doute.
+- Garder les outils MCP en lecture seule tant que l’audit et les contrôles d’accès n’ont pas été pleinement testés.

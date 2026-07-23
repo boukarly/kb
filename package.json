@@ -1,23 +1,26 @@
 {
   "name": "mansour-knowledge-base",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.api.json --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
-    "lint": "tsc --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.api.json --noEmit"
   },
   "dependencies": {
     "@insforge/sdk": "latest",
+    "@modelcontextprotocol/sdk": "1.26.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "lucide-react": "^0.546.0",
+    "mcp-handler": "1.1.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "zod": "^3.25.50"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
