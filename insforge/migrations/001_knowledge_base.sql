@@ -1,4 +1,3 @@
-begin;
 create extension if not exists pgcrypto;
 create extension if not exists vector;
 
@@ -134,4 +133,3 @@ language sql stable security invoker as $$
     and c.search_vector @@ websearch_to_tsquery('simple',search_query)
   order by rank desc,c.chunk_index asc limit greatest(1,least(result_limit,100));
 $$;
-commit;
