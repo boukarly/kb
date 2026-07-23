@@ -1,6 +1,7 @@
 -- Mansour Knowledge Base — complete InsForge database schema
 -- Safe to run from the InsForge SQL Editor.
 -- No BEGIN / COMMIT statements are used.
+-- The script is idempotent and repairs a partially executed earlier migration.
 
 create extension if not exists pgcrypto;
 create extension if not exists vector;
@@ -43,7 +44,7 @@ create table if not exists public.documents (
   size_bytes bigint not null
     check (size_bytes >= 0),
   bucket_name text not null default 'knowledge-documents',
-  object_key text not null unique,
+  object_key text not null,
   storage_url text,
   checksum_sha256 text,
   status text not null default 'uploaded'
@@ -187,8 +188,56 @@ create table if not exists public.mcp_clients (
 );
 
 -- -----------------------------------------------------------------------------
+-- REPAIR / UPGRADE A PARTIALLY CREATED SCHEMA
+-- -----------------------------------------------------------------------------
+
+alter table public.collections
+  add column if not exists document_count integer not null default 0;
+
+alter table public.document_chunks
+  add column if not exists version_id uuid;
+
+alter table public.document_chunks
+  add column if not exists embedding vector(1536);
+
+alter table public.document_chunks
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+alter table public.processing_jobs
+  add column if not exists locked_at timestamptz;
+
+alter table public.processing_jobs
+  add column if not exists started_at timestamptz;
+
+alter table public.processing_jobs
+  add column if not exists finished_at timestamptz;
+
+alter table public.document_chunks
+  drop constraint if exists document_chunks_document_id_chunk_index_key;
+
+DO $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'document_chunks_version_id_fkey'
+      and conrelid = 'public.document_chunks'::regclass
+  ) then
+    alter table public.document_chunks
+      add constraint document_chunks_version_id_fkey
+      foreign key (version_id)
+      references public.document_versions(id)
+      on delete cascade;
+  end if;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
 -- INDEXES
 -- -----------------------------------------------------------------------------
+
+create unique index if not exists documents_object_key_uq
+  on public.documents(object_key);
 
 create unique index if not exists documents_owner_checksum_uq
   on public.documents(owner_id, checksum_sha256)
