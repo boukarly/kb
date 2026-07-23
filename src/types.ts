@@ -1,91 +1,66 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+export type DocumentStatus =
+  | 'uploading'
+  | 'uploaded'
+  | 'queued'
+  | 'extracting'
+  | 'chunking'
+  | 'indexing'
+  | 'ready'
+  | 'failed'
+  | 'deleting'
+  | 'deleted';
 
-export type DocumentStatus = 'uploading' | 'pending' | 'extracting' | 'indexing' | 'ready' | 'failed';
-
-export interface User {
+export interface AuthUser {
   id: string;
   email: string;
-  name: string | null;
-  createdAt: string;
+  profile?: {
+    name?: string;
+    avatar_url?: string;
+  };
 }
 
-export interface Session {
+export interface KnowledgeDocument {
   id: string;
-  userId: string;
-  token: string;
-  expiresAt: string;
-}
-
-export interface Document {
-  id: string;
-  userId: string;
-  name: string;
-  originalFilename: string;
-  mimeType: string;
-  fileSize: number;
-  storagePath: string;
-  checksum: string | null;
+  owner_id: string;
+  title: string;
+  original_filename: string;
+  mime_type: string;
+  extension: string;
+  size_bytes: number;
+  bucket_name: string;
+  object_key: string;
+  storage_url: string | null;
+  checksum_sha256: string | null;
   status: DocumentStatus;
-  pageCount: number | null;
-  chunkCount: number | null;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
+  progress: number;
+  current_stage: string | null;
+  page_count: number | null;
+  chunk_count: number;
+  language: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface DocumentChunk {
   id: string;
-  documentId: string;
-  userId: string;
-  chunkIndex: number;
+  document_id: string;
+  owner_id: string;
+  chunk_index: number;
   content: string;
-  pageStart: number | null;
-  pageEnd: number | null;
   heading: string | null;
-  tokenCount: number | null;
-  metadata: string | null;
-  createdAt: string;
-}
-
-export interface Collection {
-  id: string;
-  userId: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
+  page_start: number | null;
+  page_end: number | null;
+  token_count: number | null;
+  created_at: string;
 }
 
 export interface DashboardStats {
   totalCount: number;
   readyCount: number;
-  processingCount: number; // pending, extracting, indexing
+  processingCount: number;
   errorCount: number;
-}
-
-export interface FilterState {
-  search: string;
-  format: string; // 'All' | 'PDF' | 'DOCX' | 'TXT' | 'Markdown'
-  status: string; // 'All' | 'ready' | 'failed' | 'processing'
-}
-
-export interface UploadingFile {
-  id: string; // temporary upload id
-  name: string;
-  format: string; // pdf, docx, txt, md
-  size: number;
-  progress: number; // 0 to 100
-  status: 'uploading' | 'pending' | 'failed' | 'ready';
-  error?: string;
-  cancelToken?: string;
-}
-
-export interface TreatmentStep {
-  name: string;
-  status: 'complete' | 'active' | 'pending' | 'failed';
-  label: string;
-  description: string;
-  timestamp?: string;
 }
