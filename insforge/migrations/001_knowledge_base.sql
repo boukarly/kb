@@ -126,10 +126,32 @@ create policy audit_owner_insert on public.audit_logs for insert with check (act
 create or replace function public.search_document_chunks(search_query text, result_limit integer default 20)
 returns table(chunk_id uuid, document_id uuid, document_title text, heading text, content text, page_start integer, page_end integer, rank real)
 language sql stable security invoker as $$
-  select c.id,c.document_id,d.title,c.heading,c.content,c.page_start,c.page_end,
-         ts_rank_cd(c.search_vector, websearch_to_tsquery('simple',search_query))::real
-  from public.document_chunks c join public.documents d on d.id=c.document_id
-  where c.owner_id=auth.uid() and d.deleted_at is null
-    and c.search_vector @@ websearch_to_tsquery('simple',search_query)
-  order by rank desc,c.chunk_index asc limit greatest(1,least(result_limit,100));
+  select
+    ranked.chunk_id,
+    ranked.document_id,
+    ranked.document_title,
+    ranked.heading,
+    ranked.content,
+    ranked.page_start,
+    ranked.page_end,
+    ranked.rank
+  from (
+    select
+      c.id as chunk_id,
+      c.document_id,
+      d.title as document_title,
+      c.heading,
+      c.content,
+      c.page_start,
+      c.page_end,
+      c.chunk_index,
+      ts_rank_cd(c.search_vector, websearch_to_tsquery('simple', search_query))::real as rank
+    from public.document_chunks c
+    join public.documents d on d.id = c.document_id
+    where c.owner_id = auth.uid()
+      and d.deleted_at is null
+      and c.search_vector @@ websearch_to_tsquery('simple', search_query)
+  ) as ranked
+  order by ranked.rank desc, ranked.chunk_index asc
+  limit greatest(1, least(result_limit, 100));
 $$;
