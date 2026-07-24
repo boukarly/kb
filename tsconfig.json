@@ -12,7 +12,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "node"]
   },
   "include": ["src/main.tsx", "src/App.tsx", "src/types.ts", "src/lib/**/*.ts"]
 }
