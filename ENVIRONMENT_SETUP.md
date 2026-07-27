@@ -26,7 +26,7 @@ Add these variables to Vercel project settings:
 
 | Variable | Value | Environment |
 |----------|-------|-------------|
-| `INSFORGE_AUTH_URL` | `https://kb-q5sg9eify-mansourboukarly-7083s-projects.vercel.app/auth/callback` | Production & Preview |
+| `INSFORGE_AUTH_URL` | `https://kb-liard-sigma.vercel.app/auth/callback` | Production & Preview |
 | `INSFORGE_API_KEY` | `ik_e0a7fcf6f91b2d54c2d9aaa0467d683c` | Production & Preview |
 
 ### Optional But Recommended
@@ -51,10 +51,10 @@ MCP_OWNER_ID=<same_as_vercel>
 MCP_API_KEY=<same_as_vercel>
 
 # Application URL (for CORS, redirects, etc.)
-APP_URL=https://kb-q5sg9eify-mansourboukarly-7083s-projects.vercel.app
+APP_URL=https://kb-liard-sigma.vercel.app
 
 # OAuth/Authorization
-INSFORGE_AUTH_URL=https://kb-q5sg9eify-mansourboukarly-7083s-projects.vercel.app/auth/callback
+INSFORGE_AUTH_URL=https://kb-liard-sigma.vercel.app/auth/callback
 INSFORGE_AUTH_PROVIDER=insforge  # or your provider
 ```
 
@@ -65,7 +65,7 @@ JWT_SECRET=<generate_32_char_random_string>
 JWT_EXPIRES_IN=7d
 
 # CORS
-CORS_ORIGINS=https://kb-q5sg9eify-mansourboukarly-7083s-projects.vercel.app,http://localhost:5173
+CORS_ORIGINS=https://kb-liard-sigma.vercel.app,http://localhost:5173
 ```
 
 ### Database (if using PostgreSQL)
