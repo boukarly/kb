@@ -1,0 +1,6 @@
+{
+  "name": "Mansour Knowledge Base",
+  "description": "Bibliothèque documentaire privée basée sur InsForge (PostgreSQL, Auth, Storage) et exposée en lecture seule via MCP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
