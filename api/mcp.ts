@@ -147,7 +147,6 @@ async function getDocumentMap(
     .from('documents')
     .select('id,title,original_filename,extension,status')
     .in('id', uniqueIds)
-    .eq('owner_id', context.ownerId)
     .is('deleted_at', null);
 
   if (error) {
@@ -179,7 +178,6 @@ const handler = createMcpHandler(
             .select(
               'id,document_id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
             )
-            .eq('owner_id', context.ownerId)
             .textSearch('search_vector', query, {
               config: 'simple',
               type: 'websearch',
@@ -242,7 +240,6 @@ const handler = createMcpHandler(
             .select(
               'id,title,original_filename,mime_type,extension,size_bytes,status,progress,current_stage,page_count,chunk_count,language,metadata,created_at,updated_at',
             )
-            .eq('owner_id', context.ownerId)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
 
@@ -297,7 +294,6 @@ const handler = createMcpHandler(
                 'id,title,original_filename,mime_type,extension,size_bytes,status,progress,current_stage,page_count,chunk_count,language,error_message,metadata,created_at,updated_at',
               )
               .eq('id', documentId)
-              .eq('owner_id', context.ownerId)
               .is('deleted_at', null)
               .limit(1);
 
@@ -320,7 +316,6 @@ const handler = createMcpHandler(
                   'id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
                 )
                 .eq('document_id', documentId)
-                .eq('owner_id', context.ownerId)
                 .order('chunk_index', { ascending: true })
                 .limit(requested);
 
@@ -396,7 +391,6 @@ const handler = createMcpHandler(
                 'id,document_id,chunk_index,heading,page_start,page_end,token_count,content,metadata',
               )
               .eq('id', chunkId)
-              .eq('owner_id', context.ownerId)
               .limit(1);
 
           if (chunkError) {
@@ -410,7 +404,6 @@ const handler = createMcpHandler(
             .from('documents')
             .select('id,title,original_filename,extension,status')
             .eq('id', chunk.document_id)
-            .eq('owner_id', context.ownerId)
             .limit(1);
 
           await audit(
@@ -481,7 +474,6 @@ const handler = createMcpHandler(
             .from('documents')
             .select('id,title,original_filename,extension,status')
             .eq('id', id)
-            .eq('owner_id', context.ownerId)
             .is('deleted_at', null)
             .limit(1);
 
@@ -491,7 +483,6 @@ const handler = createMcpHandler(
               .from('document_chunks')
               .select('content')
               .eq('document_id', id)
-              .eq('owner_id', context.ownerId)
               .order('chunk_index', { ascending: true })
               .limit(50);
 
@@ -514,7 +505,6 @@ const handler = createMcpHandler(
             .from('document_chunks')
             .select('id,document_id,heading,content')
             .eq('id', id)
-            .eq('owner_id', context.ownerId)
             .limit(1);
 
           if (chunkRows?.[0]) {
