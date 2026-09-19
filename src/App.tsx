@@ -428,8 +428,7 @@ function OtpScreen({ email, onSuccess, onNavigate }: OtpProps) {
     setError('');
     const { data, error: authError } = await api.auth.verifyOtp({
       email,
-      token: otp,
-      type: 'signup',
+      otp,
     });
     setBusy(false);
     if (authError || !data?.user) {
@@ -443,7 +442,7 @@ function OtpScreen({ email, onSuccess, onNavigate }: OtpProps) {
 
   async function handleResend() {
     setResent(false);
-    await api.auth.resend({ email, type: 'signup' });
+    await api.auth.resendVerificationEmail({ email });
     setResent(true);
     window.setTimeout(() => setResent(false), 5000);
   }
@@ -542,7 +541,8 @@ function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps) {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const { error: authError } = await api.auth.resetPasswordForEmail(email, {
+    const { error: authError } = await api.auth.sendResetPasswordEmail({
+      email,
       redirectTo: `${window.location.origin}/`,
     });
     setBusy(false);
