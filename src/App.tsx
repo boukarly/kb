@@ -631,8 +631,10 @@ export default function App() {
                 onClick={() => void copyMcpUrl()}
                 className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
               >
-                {copied ? <Check size={17} /> : <Copy size={17} />}
-                {copied ? 'Copié' : 'Copier le lien'}
+                <span className="flex items-center justify-center">
+                  {copied ? <Check key="check-icon" size={17} /> : <Copy key="copy-icon" size={17} />}
+                </span>
+                <span>{copied ? 'Copié' : 'Copier le lien'}</span>
               </button>
             </div>
           </div>

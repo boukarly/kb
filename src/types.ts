@@ -16,7 +16,7 @@ export interface AuthUser {
   profile?: {
     name?: string;
     avatar_url?: string;
-  };
+  } | null;
 }
 
 export interface KnowledgeDocument {
