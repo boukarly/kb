@@ -562,9 +562,19 @@ async function verifyToken(
   _request: Request,
   bearerToken?: string,
 ): Promise<AuthInfo | undefined> {
-  if (!bearerToken) return undefined;
-
   requireServerConfiguration();
+
+  if (!bearerToken) {
+    return {
+      token: 'anonymous-single-user-access',
+      scopes: ['user:read'],
+      clientId: 'single-user-owner',
+      extra: {
+        authMethod: 'no-auth-fallback',
+        ownerId,
+      },
+    };
+  }
 
   if (
     configuredStaticApiKey &&
