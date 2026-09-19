@@ -463,6 +463,82 @@ const handler = createMcpHandler(
         }
       },
     );
+
+    server.registerTool(
+      'fetch',
+      {
+        title: 'Récupérer un document ou passage',
+        description:
+          'Récupère le contenu complet d’un document ou d’un passage par son ID pour analyse et citation ChatGPT.',
+        inputSchema: z.object({
+          id: z.string().trim().min(1),
+        }),
+      },
+      async ({ id }) => {
+        try {
+          const context = getServiceContext();
+          const { data: docRows } = await context.client.database
+            .from('documents')
+            .select('id,title,original_filename,extension,status')
+            .eq('id', id)
+            .eq('owner_id', context.ownerId)
+            .is('deleted_at', null)
+            .limit(1);
+
+          if (docRows?.[0]) {
+            const doc = docRows[0];
+            const { data: chunkRows } = await context.client.database
+              .from('document_chunks')
+              .select('content')
+              .eq('document_id', id)
+              .eq('owner_id', context.ownerId)
+              .order('chunk_index', { ascending: true })
+              .limit(50);
+
+            const text = (chunkRows || []).map((c: any) => c.content).join('\n\n');
+            const baseUrl = appUrl || 'https://kb-liard-sigma.vercel.app';
+            const docUrl = `${baseUrl}/#doc-${doc.id}`;
+
+            await audit(context, 'mcp.fetch.document', { id });
+
+            return jsonResult({
+              id: doc.id,
+              title: doc.title || doc.original_filename,
+              text: crop(text, 25_000),
+              url: docUrl,
+              metadata: { filename: doc.original_filename, extension: doc.extension, status: doc.status },
+            });
+          }
+
+          const { data: chunkRows } = await context.client.database
+            .from('document_chunks')
+            .select('id,document_id,heading,content')
+            .eq('id', id)
+            .eq('owner_id', context.ownerId)
+            .limit(1);
+
+          if (chunkRows?.[0]) {
+            const chunk = chunkRows[0];
+            const baseUrl = appUrl || 'https://kb-liard-sigma.vercel.app';
+            const chunkUrl = `${baseUrl}/#chunk-${chunk.id}`;
+
+            await audit(context, 'mcp.fetch.chunk', { id });
+
+            return jsonResult({
+              id: chunk.id,
+              title: chunk.heading || 'Passage documentaire',
+              text: crop(chunk.content, 12_000),
+              url: chunkUrl,
+              metadata: { documentId: chunk.document_id },
+            });
+          }
+
+          throw new Error(`Aucun document ou passage trouvé pour l'ID : ${id}`);
+        } catch (error) {
+          return errorResult(error);
+        }
+      },
+    );
   },
   {
     serverInfo: {
